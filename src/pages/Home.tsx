@@ -185,14 +185,33 @@ const Home: React.FC = () => {
                     style={{ animationDelay: `${index * 0.1}s`, opacity: 0 }}
                   >
                     <div className="bg-white/70 backdrop-blur-md border border-white/50 shadow-lg hover:shadow-xl hover:scale-105 transition-all rounded-2xl p-6 h-full">
-                      <div className="flex justify-between items-start mb-4">
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '8px',
+                        gap: '8px',
+                        flexWrap: 'nowrap'
+                      }}>
                         <div>
                           <h3 className="text-lg font-bold text-pink-600 mb-2">{brand.brandName}</h3>
                           <p className="text-sm text-gray-600 mb-3">{brand.description}</p>
                           <span className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 text-xs px-2 py-1 rounded-full">{brand.category}</span>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full text-sm font-medium">
+                          <span style={{
+                            backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)',
+                            color: 'white',
+                            fontWeight: '600',
+                            padding: '6px 12px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            whiteSpace: 'nowrap',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            flexShrink: 0
+                          }}>
                             {brand.followerCount || 0} followers
                           </span>
                           <button

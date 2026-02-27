@@ -48,6 +48,42 @@ const Dashboard: React.FC = () => {
   const [facebookUrl, setFacebookUrl] = useState('');
   const [category, setCategory] = useState('');
 
+  // Field errors state
+  const [fieldErrors, setFieldErrors] = useState({
+    brandName: false,
+    category: false,
+    description: false,
+    instagramUrl: false,
+    facebookUrl: false,
+  });
+
+  // Category dropdown state
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [editCategoryDropdownOpen, setEditCategoryDropdownOpen] = useState(false);
+
+  const categories = [
+    'Technology',
+    'Fashion & Clothing',
+    'Food & Beverages',
+    'Health & Fitness',
+    'Beauty & Skincare',
+    'Education',
+    'Art & Design',
+    'Music',
+    'Drinkware',
+    'Sports',
+    'Books & Literature',
+    'Home & Kitchen',
+    'Photography',
+    'Travel',
+    'Gaming',
+    'Finance',
+    'Handmade & Crafts',
+    'Jewelry & Accessories',
+    'Electronics',
+    'Other'
+  ];
+
   useEffect(() => {
     if (currentUser) {
       fetchUserBrands();
@@ -79,22 +115,60 @@ const Dashboard: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!brandName.trim()) {
-      showToast('Brand name is required', 'error');
+    // Reset all field errors first
+    setFieldErrors({
+      brandName: false,
+      category: false,
+      description: false,
+      instagramUrl: false,
+      facebookUrl: false,
+    });
+
+    // Check each field one by one and show specific toast
+    if (!brandName || brandName.trim() === '') {
+      setFieldErrors(prev => ({ ...prev, brandName: true }));
+      showToast('⚠️ Brand name is required!', 'error');
       return;
     }
 
-    // Validate URLs
-    if (instagramUrl && !isValidUrl(instagramUrl)) {
-      showToast('Instagram URL must start with https://', 'error');
+    if (!category || category.trim() === '') {
+      setFieldErrors(prev => ({ ...prev, category: true }));
+      showToast('⚠️ Category is required!', 'error');
       return;
     }
 
-    if (facebookUrl && !isValidUrl(facebookUrl)) {
-      showToast('Facebook URL must start with https://', 'error');
+    if (!description || description.trim() === '') {
+      setFieldErrors(prev => ({ ...prev, description: true }));
+      showToast('⚠️ Description is required!', 'error');
       return;
     }
 
+    if (!instagramUrl || instagramUrl.trim() === '') {
+      setFieldErrors(prev => ({ ...prev, instagramUrl: true }));
+      showToast('⚠️ Instagram URL is required!', 'error');
+      return;
+    }
+
+    const urlPattern = /^https?:\/\/.+/;
+    if (!urlPattern.test(instagramUrl.trim())) {
+      setFieldErrors(prev => ({ ...prev, instagramUrl: true }));
+      showToast('⚠️ Instagram URL must start with https://', 'error');
+      return;
+    }
+
+    if (!facebookUrl || facebookUrl.trim() === '') {
+      setFieldErrors(prev => ({ ...prev, facebookUrl: true }));
+      showToast('⚠️ Facebook URL is required!', 'error');
+      return;
+    }
+
+    if (!urlPattern.test(facebookUrl.trim())) {
+      setFieldErrors(prev => ({ ...prev, facebookUrl: true }));
+      showToast('⚠️ Facebook URL must start with https://', 'error');
+      return;
+    }
+
+    // All valid — proceed with existing create brand logic
     try {
       if (isEditing && currentBrandId) {
         // Update existing brand
@@ -108,7 +182,7 @@ const Dashboard: React.FC = () => {
           ownerId: currentUser!.uid,
           updatedAt: serverTimestamp()
         });
-        showToast('Brand updated successfully! ✅', 'success');
+        showToast('🎉 Brand updated successfully!', 'success');
       } else {
         // Create new brand
         await addDoc(collection(db, 'brands'), {
@@ -126,11 +200,18 @@ const Dashboard: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-        showToast('Brand created successfully! 🎉', 'success');
+        showToast('🎉 Brand created successfully!', 'success');
       }
 
       // Reset form
       resetForm();
+      setFieldErrors({
+        brandName: false,
+        category: false,
+        description: false,
+        instagramUrl: false,
+        facebookUrl: false,
+      });
       fetchUserBrands();
     } catch (error) {
       console.error('Error saving brand:', error);
@@ -138,15 +219,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const isValidUrl = (url: string): boolean => {
-    if (!url) return true; // Allow empty URLs
-    try {
-      const parsedUrl = new URL(url);
-      return parsedUrl.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  };
 
   const handleEdit = (brand: Brand) => {
     setBrandName(brand.brandName);
@@ -156,6 +228,14 @@ const Dashboard: React.FC = () => {
     setFacebookUrl(brand.facebookUrl || '');
     setIsEditing(true);
     setCurrentBrandId(brand.id);
+    setFieldErrors({
+      brandName: false,
+      category: false,
+      description: false,
+      instagramUrl: false,
+      facebookUrl: false,
+    });
+    setEditCategoryDropdownOpen(false); // Reset dropdown state when editing
   };
 
   const handleDelete = async (brandId: string) => {
@@ -179,6 +259,15 @@ const Dashboard: React.FC = () => {
     setFacebookUrl('');
     setIsEditing(false);
     setCurrentBrandId(null);
+    setFieldErrors({
+      brandName: false,
+      category: false,
+      description: false,
+      instagramUrl: false,
+      facebookUrl: false,
+    });
+    setCategoryDropdownOpen(false);
+    setEditCategoryDropdownOpen(false);
   };
 
   if (loading) {
@@ -205,87 +294,420 @@ const Dashboard: React.FC = () => {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#ffafcc]">
-                  Brand Name *
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontWeight: '600',
+                  color: '#ec4899',
+                  fontSize: '14px'
+                }}>
+                  Brand Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   id="brandName"
                   type="text"
                   value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/50 border border-pink-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all duration-300 focus:scale-[1.01] text-gray-700"
+                  onChange={(e) => {
+                    setBrandName(e.target.value);
+                    if (e.target.value.trim()) setFieldErrors(prev => ({ ...prev, brandName: false }));
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    border: fieldErrors.brandName ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                    fontSize: '14px',
+                    outline: 'none',
+                    color: '#374151',
+                    backgroundColor: 'white',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor = '#ec4899';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                    e.currentTarget.style.backgroundColor = '#fdf2f8';
+                    e.currentTarget.style.color = '#374151';
+                  }}
+                  onBlur={e => {
+                    if (!e.currentTarget.value.trim()) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.backgroundColor = 'white';
+                    } else {
+                      e.currentTarget.style.borderColor = '#ec4899';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                      e.currentTarget.style.backgroundColor = '#fdf2f8';
+                    }
+                    e.currentTarget.style.color = '#374151';
+                  }}
                   placeholder="Enter brand name"
                 />
+                {fieldErrors.brandName && (
+                  <p style={{
+                    color: '#ef4444',
+                    fontSize: '12px',
+                    marginTop: '5px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    ⚠️ Brand Name is required
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#ffafcc]">
-                  Category
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontWeight: '600',
+                  color: '#ec4899',
+                  fontSize: '14px'
+                }}>
+                  Category <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  id="category"
-                  type="text"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/50 border border-pink-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all duration-300 focus:scale-[1.01] text-gray-700"
-                  placeholder="Enter category (e.g. Technology, Fashion, Art)"
-                />
+
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Select or type category"
+                    value={category}
+                    onChange={e => {
+                      setCategory(e.target.value);
+                      if (e.target.value.trim()) setFieldErrors(prev => ({ ...prev, category: false }));
+                      if (isEditing) {
+                        setEditCategoryDropdownOpen(true);
+                      } else {
+                        setCategoryDropdownOpen(true);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (isEditing) {
+                        setEditCategoryDropdownOpen(true);
+                      } else {
+                        setCategoryDropdownOpen(true);
+                      }
+                    }}
+                    onBlur={() => setTimeout(() => {
+                      if (isEditing) {
+                        setEditCategoryDropdownOpen(false);
+                      } else {
+                        setCategoryDropdownOpen(false);
+                      }
+                    }, 300)}
+                    readOnly={false}
+                    style={{
+                      width: '100%',
+                      padding: '12px 40px 12px 16px',
+                      borderRadius: '12px',
+                      border: fieldErrors.category
+                        ? '2px solid #ef4444'
+                        : category
+                          ? '2px solid #ec4899'
+                          : '1px solid #e5e7eb',
+                      fontSize: '14px',
+                      outline: 'none',
+                      backgroundColor: category ? '#fdf2f8' : 'white',
+                      color: '#374151',
+                      fontWeight: category ? '600' : '400',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                      transition: 'all 0.2s'
+                    }}
+                  />
+                  <span
+                    onClick={() => {
+                      if (isEditing) {
+                        setEditCategoryDropdownOpen(!editCategoryDropdownOpen);
+                      } else {
+                        setCategoryDropdownOpen(!categoryDropdownOpen);
+                      }
+                    }}
+                    style={{
+                      position: 'absolute', right: '12px', top: '50%',
+                      transform: 'translateY(-50%)', color: '#9ca3af',
+                      cursor: 'pointer', fontSize: '12px', userSelect: 'none'
+                    }}
+                  >▼</span>
+
+                  {(isEditing ? editCategoryDropdownOpen : categoryDropdownOpen) && (
+                    <div style={{
+                      position: 'absolute', top: '105%', left: 0, right: 0,
+                      backgroundColor: 'white',
+                      border: '2px solid #f9a8d4',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 30px rgba(236,72,153,0.15)',
+                      zIndex: 99999,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      marginTop: '2px'
+                    }}>
+                      {categories
+                        .filter(cat =>
+                          category === '' ||
+                          cat.toLowerCase().includes(category.toLowerCase())
+                        )
+                        .map(cat => (
+                          <div
+                            key={cat}
+                            onClick={() => {
+                              setCategory(cat);
+                              setFieldErrors(prev => ({ ...prev, category: false }));
+                              if (isEditing) {
+                                setEditCategoryDropdownOpen(false);
+                              } else {
+                                setCategoryDropdownOpen(false);
+                              }
+                            }}
+                            style={{
+                              padding: '10px 16px',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              color: '#374151',
+                              fontWeight: '500',
+                              borderBottom: '1px solid #fce7f3',
+                              backgroundColor: category === cat ? '#fdf2f8' : 'white',
+                              transition: 'all 0.15s'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#fdf2f8';
+                              e.currentTarget.style.color = '#ec4899';
+                              e.currentTarget.style.paddingLeft = '20px';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = category === cat ? '#fdf2f8' : 'white';
+                              e.currentTarget.style.color = '#374151';
+                              e.currentTarget.style.paddingLeft = '16px';
+                            }}
+                          >
+                            {cat}
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {fieldErrors.category && (
+                  <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    ⚠️ Category is required
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-[#ffafcc]">
-                  Description
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontWeight: '600',
+                  color: '#ec4899',
+                  fontSize: '14px'
+                }}>
+                  Description <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <textarea
                   id="description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    if (e.target.value.trim()) setFieldErrors(prev => ({ ...prev, description: false }));
+                  }}
                   rows={4}
-                  className="w-full px-4 py-3 bg-white/50 border border-pink-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all duration-300 focus:scale-[1.01] text-gray-700 resize-none"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    border: fieldErrors.description ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                    fontSize: '14px',
+                    outline: 'none',
+                    color: '#374151',
+                    backgroundColor: 'white',
+                    resize: 'vertical',
+                    minHeight: '120px',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor = '#ec4899';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                    e.currentTarget.style.backgroundColor = '#fdf2f8';
+                    e.currentTarget.style.color = '#374151';
+                  }}
+                  onBlur={e => {
+                    if (!e.currentTarget.value.trim()) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.backgroundColor = 'white';
+                    } else {
+                      e.currentTarget.style.borderColor = '#ec4899';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                      e.currentTarget.style.backgroundColor = '#fdf2f8';
+                    }
+                    e.currentTarget.style.color = '#374151';
+                  }}
                   placeholder="Describe your brand"
                 />
+                {fieldErrors.description && (
+                  <p style={{
+                    color: '#ef4444',
+                    fontSize: '12px',
+                    marginTop: '5px',
+                    fontWeight: '500'
+                  }}>
+                    ⚠️ Description is required
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[#ffafcc]">
-                    Instagram URL
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    color: '#ec4899',
+                    fontSize: '14px'
+                  }}>
+                    Instagram URL <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
                     id="instagramUrl"
-                    type="url"
+                    type="text"
                     value={instagramUrl}
-                    onChange={(e) => setInstagramUrl(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/50 border border-pink-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all duration-300 focus:scale-[1.01] text-gray-700"
+                    onChange={(e) => {
+                      setInstagramUrl(e.target.value);
+                      if (e.target.value.trim()) setFieldErrors(prev => ({ ...prev, instagramUrl: false }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: fieldErrors.instagramUrl ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                      fontSize: '14px',
+                      outline: 'none',
+                      color: '#374151',
+                      backgroundColor: 'white',
+                      transition: 'all 0.2s',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={e => {
+                      e.currentTarget.style.borderColor = '#ec4899';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                      e.currentTarget.style.backgroundColor = '#fdf2f8';
+                      e.currentTarget.style.color = '#374151';
+                    }}
+                    onBlur={e => {
+                      if (!e.currentTarget.value.trim()) {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.backgroundColor = 'white';
+                      } else {
+                        e.currentTarget.style.borderColor = '#ec4899';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                        e.currentTarget.style.backgroundColor = '#fdf2f8';
+                      }
+                      e.currentTarget.style.color = '#374151';
+                    }}
                     placeholder="https://instagram.com/yourbrand"
                   />
+                  {fieldErrors.instagramUrl && (
+                    <p style={{
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      marginTop: '5px',
+                      fontWeight: '500'
+                    }}>
+                      ⚠️ Valid Instagram URL is required (https://)
+                    </p>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[#ffafcc]">
-                    Facebook URL
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    fontWeight: '600',
+                    color: '#ec4899',
+                    fontSize: '14px'
+                  }}>
+                    Facebook URL <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
                     id="facebookUrl"
-                    type="url"
+                    type="text"
                     value={facebookUrl}
-                    onChange={(e) => setFacebookUrl(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/50 border border-pink-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-transparent transition-all duration-300 focus:scale-[1.01] text-gray-700"
+                    onChange={(e) => {
+                      setFacebookUrl(e.target.value);
+                      if (e.target.value.trim()) setFieldErrors(prev => ({ ...prev, facebookUrl: false }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: fieldErrors.facebookUrl ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                      fontSize: '14px',
+                      outline: 'none',
+                      color: '#374151',
+                      backgroundColor: 'white',
+                      transition: 'all 0.2s',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={e => {
+                      e.currentTarget.style.borderColor = '#ec4899';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                      e.currentTarget.style.backgroundColor = '#fdf2f8';
+                      e.currentTarget.style.color = '#374151';
+                    }}
+                    onBlur={e => {
+                      if (!e.currentTarget.value.trim()) {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.backgroundColor = 'white';
+                      } else {
+                        e.currentTarget.style.borderColor = '#ec4899';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(236,72,153,0.15)';
+                        e.currentTarget.style.backgroundColor = '#fdf2f8';
+                      }
+                      e.currentTarget.style.color = '#374151';
+                    }}
                     placeholder="https://facebook.com/yourbrand"
                   />
+                  {fieldErrors.facebookUrl && (
+                    <p style={{
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      marginTop: '5px',
+                      fontWeight: '500'
+                    }}>
+                      ⚠️ Valid Facebook URL is required (https://)
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="flex space-x-4 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 text-white font-bold py-3 rounded-xl transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 active:scale-95"
-                  style={{backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)'}}
-                  onMouseEnter={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #db2777, #9333ea)'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #ec4899, #a855f7)'}
+                  style={{
+                    backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)',
+                    color: 'white',
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '12px',
+                    fontWeight: '700',
+                    border: 'none',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    marginTop: '8px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundImage = 'linear-gradient(to right, #db2777, #9333ea)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundImage = 'linear-gradient(to right, #ec4899, #a855f7)'}
                 >
-                  {isEditing ? 'Update Brand' : 'Create Brand'}
+                  {isEditing ? 'Update Brand' : '🚀 Create Brand'}
                 </button>
 
                 {isEditing && (

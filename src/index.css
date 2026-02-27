@@ -224,3 +224,26 @@ button:focus-visible {
 .page-enter {
   animation: fadeInUp 0.5s ease-out forwards;
 }
+
+input:focus, textarea:focus {
+  outline: none !important;
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.15) !important;
+  background-color: #fdf2f8 !important;
+  color: #374151 !important;
+}
+
+input, textarea {
+  color: #374151 !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+input:not(:placeholder-shown), textarea:not(:placeholder-shown) {
+  border-color: #ec4899 !important;
+  background-color: #fdf2f8 !important;
+  color: #374151 !important;
+}
