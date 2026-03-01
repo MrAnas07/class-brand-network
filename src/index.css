@@ -193,6 +193,17 @@ button:focus-visible {
   to { transform: rotate(360deg); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scoreUpdate {
+  0% { transform: scale(1.4); opacity: 0.5; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* Animation utility classes */
 .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
 .animate-fadeInUp { animation: fadeInUp 0.6s ease-out forwards; }
@@ -256,4 +267,16 @@ input:not(:placeholder-shown), textarea:not(:placeholder-shown) {
   border-color: #ec4899 !important;
   background-color: #fdf2f8 !important;
   color: #374151 !important;
+}
+
+@media (max-width: 480px) {
+  /* Leaderboard rows on very small screens */
+  .leaderboard-row {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+  .leaderboard-score {
+    min-width: 48px !important;
+    font-size: 12px !important;
+  }
 }
