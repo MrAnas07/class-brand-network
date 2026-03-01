@@ -781,7 +781,6 @@ const Dashboard: React.FC = () => {
                 {brands.length > 0 && (
                   <BrandAnalytics
                     brand={brands.find(b => b.id === showAnalytics) || brands[0]}
-                    analyticsData={[]}
                   />
                 )}
               </>
