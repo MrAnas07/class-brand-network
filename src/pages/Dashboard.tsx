@@ -11,8 +11,10 @@ import {
   doc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, updateEngagementScore } from '../services/firebase';
 import BrandCard from '../components/BrandCard';
+import ReputationBadge from '../components/ReputationBadge';
+import BrandAnalytics from '../components/BrandAnalytics';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { getFirebaseError } from '../utils/errorMessages';
@@ -39,6 +41,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentBrandId, setCurrentBrandId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState<string | null>(null);
   const { toast, showToast, hideToast } = useToast();
 
   // Form state
@@ -182,10 +185,23 @@ const Dashboard: React.FC = () => {
           ownerId: currentUser!.uid,
           updatedAt: serverTimestamp()
         });
+
+        // Calculate and update score:
+        const brandData = brands.find(b => b.id === currentBrandId);
+        await updateEngagementScore(currentBrandId, {
+          ...brandData,
+          brandName: brandName.trim(),
+          description: description.trim(),
+          category: category.trim() || 'Technology',
+          instagramUrl: instagramUrl.trim(),
+          facebookUrl: facebookUrl.trim(),
+          likeCount: brandData?.likeCount || 0,
+          followerCount: brandData?.followerCount || 0
+        });
         showToast('🎉 Brand updated successfully!', 'success');
       } else {
         // Create new brand
-        await addDoc(collection(db, 'brands'), {
+        const docRef = await addDoc(collection(db, 'brands'), {
           userId: currentUser!.uid,
           brandName: brandName.trim(),
           description: description.trim(),
@@ -196,9 +212,28 @@ const Dashboard: React.FC = () => {
           likes: [],
           followerCount: 0,
           likeCount: 0,
+          recentLikes: 0,
+          recentFollows: 0,
+          trendingScore: 15, // new brand bonus
+          newBrandBonus: 15,
+          engagementScore: 0,
+          reputationScore: 20, // starts with profile completeness bonus
           ownerId: currentUser!.uid,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          lastTrendingUpdate: new Date().toISOString(),
+          lastReputationUpdate: new Date().toISOString()
+        });
+
+        // Calculate and update score immediately:
+        await updateEngagementScore(docRef.id, {
+          brandName: brandName.trim(),
+          description: description.trim(),
+          category: category.trim() || 'Technology',
+          instagramUrl: instagramUrl.trim(),
+          facebookUrl: facebookUrl.trim(),
+          likeCount: 0,
+          followerCount: 0
         });
         showToast('🎉 Brand created successfully!', 'success');
       }
@@ -728,104 +763,170 @@ const Dashboard: React.FC = () => {
 
           {/* Your Brands Section - Right Side */}
           <div className="bg-white/60 backdrop-blur-md border border-white/50 shadow-lg rounded-2xl p-6 animate-fadeInRight">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-pink-600">Your Brands</h2>
-              <span className="text-sm text-gray-600">{brands.length} {brands.length === 1 ? 'brand' : 'brands'}</span>
-            </div>
-
-            {brands.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">You haven't created any brands yet.</p>
-                <p className="text-gray-500 mt-2">Create your first brand to get started!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {brands.map((brand, index) => (
-                  <div
-                    key={brand.id}
-                    className="bg-white/50 backdrop-blur-sm border border-white/50 shadow-md hover:shadow-lg hover:scale-[1.01] transition-all p-4 rounded-xl animate-fadeInUp hover-lift"
-                    style={{ animationDelay: `${index * 0.15}s`, opacity: 0 }}
+            {showAnalytics ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <button
+                    onClick={() => setShowAnalytics(null)}
+                    className="text-pink-600 font-semibold py-2 px-4 rounded-xl transition-all border-2 border-pink-300"
+                    style={{backgroundColor: 'transparent'}}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor='#fdf2f8'; e.currentTarget.style.borderColor='#ec4899'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor='transparent'; e.currentTarget.style.borderColor='#d1d5db'; }}
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="text-lg font-bold text-pink-600 mb-1">{brand.brandName}</h3>
-                        <p className="text-sm text-gray-600 mb-2">{brand.description}</p>
-                        <span className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 text-xs px-2 py-1 rounded-full">{brand.category}</span>
-                      </div>
-                      <span className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full text-sm font-medium">
-                        {brand.followerCount || 0} followers
-                      </span>
-                    </div>
+                    ← Back to Brands
+                  </button>
+                  <h2 className="text-2xl font-bold text-pink-600">Brand Analytics</h2>
+                  <div></div> {/* Spacer to keep alignment */}
+                </div>
+                {brands.length > 0 && (
+                  <BrandAnalytics
+                    brand={brands.find(b => b.id === showAnalytics) || brands[0]}
+                    analyticsData={[]}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-pink-600">Your Brands</h2>
+                  <span className="text-sm text-gray-600">{brands.length} {brands.length === 1 ? 'brand' : 'brands'}</span>
+                </div>
 
-                    <div className="flex space-x-2 mb-3">
-                      {brand.instagramUrl && (
-                        <a
-                          href={brand.instagramUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)',
-                            color: 'white',
-                            fontWeight: '600',
-                            padding: '6px 14px',
-                            borderRadius: '9999px',
-                            fontSize: '12px',
-                            textDecoration: 'none',
-                            display: 'inline-block'
-                          }}
-                        >
-                          Instagram
-                        </a>
-                      )}
-                      {brand.facebookUrl && (
-                        <a
-                          href={brand.facebookUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            backgroundImage: 'linear-gradient(to right, #6366f1, #3b82f6)',
-                            color: 'white',
-                            fontWeight: '600',
-                            padding: '6px 14px',
-                            borderRadius: '9999px',
-                            fontSize: '12px',
-                            textDecoration: 'none',
-                            display: 'inline-block'
-                          }}
-                        >
-                          Facebook
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="flex gap-3 text-sm text-gray-500 mt-2">
-                      <span>❤️ {brand.likeCount || 0} likes</span>
-                      <span>👥 {brand.followerCount || 0} followers</span>
-                    </div>
-
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => handleEdit(brand)}
-                        className="flex-1 text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95"
-                        style={{backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)'}}
-                        onMouseEnter={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #db2777, #9333ea)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #ec4899, #a855f7)'}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(brand.id)}
-                        className="flex-1 text-red-500 font-semibold py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-red-400"
-                        style={{backgroundColor: 'transparent'}}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor='#ef4444'; e.currentTarget.style.color='white'; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor='transparent'; e.currentTarget.style.color='#ef4444'; }}
-                      >
-                        Delete
-                      </button>
-                    </div>
+                {brands.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 text-lg">You haven't created any brands yet.</p>
+                    <p className="text-gray-500 mt-2">Create your first brand to get started!</p>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="space-y-4">
+                    {brands.map((brand, index) => (
+                      <div
+                        key={brand.id}
+                        className="bg-white/50 backdrop-blur-sm border border-white/50 shadow-md hover:shadow-lg hover:scale-[1.01] transition-all p-4 rounded-xl animate-fadeInUp hover-lift"
+                        style={{ animationDelay: `${index * 0.15}s`, opacity: 0 }}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="text-lg font-bold text-pink-600 mb-1">{brand.brandName}</h3>
+                            <p className="text-sm text-gray-600 mb-2">{brand.description}</p>
+                            <span className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 text-xs px-2 py-1 rounded-full">{brand.category}</span>
+                            {/* Reputation Badge with progress */}
+                            <div style={{ marginTop: '10px', marginBottom: '8px' }}>
+                              <ReputationBadge
+                                score={brand.reputationScore || 0}
+                                showProgress={true}
+                                size="md"
+                              />
+                            </div>
+                          </div>
+                          <span className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full text-sm font-medium">
+                            {brand.followerCount || 0} followers
+                          </span>
+                        </div>
+
+                        <div className="flex space-x-2 mb-3">
+                          {brand.instagramUrl && (
+                            <a
+                              href={brand.instagramUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)',
+                                color: 'white',
+                                fontWeight: '600',
+                                padding: '6px 14px',
+                                borderRadius: '9999px',
+                                fontSize: '12px',
+                                textDecoration: 'none',
+                                display: 'inline-block'
+                              }}
+                            >
+                              Instagram
+                            </a>
+                          )}
+                          {brand.facebookUrl && (
+                            <a
+                              href={brand.facebookUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                backgroundImage: 'linear-gradient(to right, #6366f1, #3b82f6)',
+                                color: 'white',
+                                fontWeight: '600',
+                                padding: '6px 14px',
+                                borderRadius: '9999px',
+                                fontSize: '12px',
+                                textDecoration: 'none',
+                                display: 'inline-block'
+                              }}
+                            >
+                              Facebook
+                            </a>
+                          )}
+                        </div>
+
+                        <div style={{
+                          display: 'flex',
+                          gap: '12px',
+                          marginTop: '8px',
+                          flexWrap: 'wrap'
+                        }}>
+                          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                            ❤️ {brand.likeCount || 0} likes
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                            👥 {brand.followerCount || 0} followers
+                          </span>
+                          <span
+                            key={brand.engagementScore}
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              background: 'linear-gradient(to right, #ec4899, #a855f7)',
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                              backgroundClip: 'text',
+                              animation: 'scoreUpdate 0.4s ease-out'
+                            }}
+                          >
+                            ⚡ {brand.engagementScore || 0} score
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleEdit(brand)}
+                            className="flex-1 text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95"
+                            style={{backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)'}}
+                            onMouseEnter={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #db2777, #9333ea)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #ec4899, #a855f7)'}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setShowAnalytics(brand.id)}
+                            className="flex-1 text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 ml-2"
+                            style={{backgroundImage: 'linear-gradient(to right, #6366f1, #a855f7)'}}
+                            onMouseEnter={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #4f46e5, #9333ea)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundImage='linear-gradient(to right, #6366f1, #a855f7)'}
+                          >
+                            Analytics
+                          </button>
+                          <button
+                            onClick={() => handleDelete(brand.id)}
+                            className="flex-1 text-red-500 font-semibold py-2 px-4 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-red-400"
+                            style={{backgroundColor: 'transparent'}}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor='#ef4444'; e.currentTarget.style.color='white'; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor='transparent'; e.currentTarget.style.color='#ef4444'; }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

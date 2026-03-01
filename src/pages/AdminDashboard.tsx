@@ -8,7 +8,13 @@ import {
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, recalculateAllScores, recalculateAllTrendingScores, recalculateAllReputations } from '../services/firebase';
+import Leaderboard from '../components/Leaderboard';
+import TrendingBrands from '../components/TrendingBrands';
+import NetworkGraph from '../components/NetworkGraph';
+import StudentRankings from '../components/StudentRankings';
+import AnalyticsCharts from '../components/AnalyticsCharts';
+import ReputationBadge from '../components/ReputationBadge';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { getFirebaseError } from '../utils/errorMessages';
@@ -28,6 +34,7 @@ interface Brand {
   ownerId: string;
   likeCount: number;
   followerCount: number;
+  engagementScore?: number;
   createdAt: any;
 }
 
@@ -39,7 +46,9 @@ export default function AdminDashboard() {
     totalUsers: 0,
     totalBrands: 0,
     totalLikes: 0,
-    totalFollowers: 0
+    totalFollowers: 0,
+    totalEngagement: 0,
+    eliteBrands: 0
   });
   const { toast, showToast, hideToast } = useToast();
 
@@ -66,11 +75,15 @@ export default function AdminDashboard() {
       setBrands(brandsData);
 
       // Calculate stats
+      const total = brandsData.reduce((sum, b) => sum + (b.engagementScore || 0), 0);
+      const eliteBrandsCount = brandsData.filter(b => (b.reputationScore || 0) >= 700).length;
       setStats({
         totalUsers: usersData.length,
         totalBrands: brandsData.length,
         totalLikes: brandsData.reduce((sum, brand) => sum + (brand.likeCount || 0), 0),
-        totalFollowers: brandsData.reduce((sum, brand) => sum + (brand.followerCount || 0), 0)
+        totalFollowers: brandsData.reduce((sum, brand) => sum + (brand.followerCount || 0), 0),
+        totalEngagement: total,
+        eliteBrands: eliteBrandsCount
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -210,6 +223,258 @@ export default function AdminDashboard() {
             </div>
             <p className="text-3xl font-bold text-indigo-600">{stats.totalFollowers}</p>
           </div>
+
+          {/* Total Engagement */}
+          <div
+            className="bg-white/70 backdrop-blur-md border border-white/50 shadow-lg rounded-2xl p-6 animate-fadeInUp"
+            style={{ animationDelay: '0.5s', opacity: 0 }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-gray-500 text-sm font-medium">Total Engagement</span>
+              <span className="text-2xl">⚡</span>
+            </div>
+            <p className="text-3xl font-bold" style={{
+              background: 'linear-gradient(to right, #ec4899, #a855f7)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              {stats.totalEngagement}
+            </p>
+          </div>
+
+          {/* Elite Brands */}
+          <div
+            className="bg-white/70 backdrop-blur-md border border-white/50 shadow-lg rounded-2xl p-6 animate-fadeInUp"
+            style={{ animationDelay: '0.6s', opacity: 0 }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-gray-500 text-sm font-medium">Elite Brands</span>
+              <span className="text-2xl">💎</span>
+            </div>
+            <p className="text-3xl font-bold text-cyan-500">{stats.eliteBrands}</p>
+            <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+              score ≥ 700
+            </p>
+          </div>
+        </div>
+
+        {/* Leaderboard Section in Admin */}
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.5)',
+          borderRadius: '20px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 20px rgba(236,72,153,0.08)'
+        }}>
+          <h2 style={{
+            fontSize: '18px',
+            fontWeight: '800',
+            background: 'linear-gradient(to right, #ec4899, #a855f7)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            marginBottom: '20px'
+          }}>
+            🏆 Top Brands Leaderboard
+          </h2>
+          <Leaderboard />
+        </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1.5px solid #fed7aa',
+          borderRadius: '20px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 20px rgba(249,115,22,0.08)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h2 style={{
+              fontSize: '18px',
+              fontWeight: '800',
+              background: 'linear-gradient(to right, #f97316, #ef4444)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              🔥 Trending Brands
+            </h2>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={async () => {
+                  await recalculateAllTrendingScores();
+                  showToast('🔥 Trending scores updated!', 'success');
+                }}
+                style={{
+                  backgroundImage: 'linear-gradient(to right, #f97316, #ef4444)',
+                  color: 'white',
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                🔥 Recalculate Trending
+              </button>
+              <button
+                onClick={async () => {
+                  await recalculateAllReputations();
+                  showToast('💎 Reputation scores updated!', 'success');
+                }}
+                style={{
+                  backgroundImage: 'linear-gradient(to right, #06b6d4, #6366f1)',
+                  color: 'white',
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                💎 Recalculate Reputations
+              </button>
+            </div>
+          </div>
+          <TrendingBrands />
+        </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1.5px solid #e0e7ff',
+          borderRadius: '20px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 20px rgba(99,102,241,0.08)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: '18px',
+                fontWeight: '800',
+                background: 'linear-gradient(to right, #6366f1, #a855f7)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                marginBottom: '4px'
+              }}>
+                🌐 Follow Network Graph
+              </h2>
+              <p style={{ fontSize: '13px', color: '#9ca3af' }}>
+                Node size = engagement score • Color = category • Edges = follow relationships
+              </p>
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)',
+              border: '1px solid #a78bfa',
+              borderRadius: '12px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#5b21b6'
+            }}>
+              👑 Admin Only
+            </div>
+          </div>
+          <NetworkGraph />
+        </div>
+
+        {/* Student Rankings */}
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1.5px solid #fce7f3',
+          borderRadius: '20px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 20px rgba(236,72,153,0.08)'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: '24px',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div>
+              <h2 style={{
+                fontSize: '18px',
+                fontWeight: '800',
+                background: 'linear-gradient(to right, #ec4899, #f97316)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                marginBottom: '4px'
+              }}>
+                🏅 Class Engagement Rankings
+              </h2>
+              <p style={{ fontSize: '13px', color: '#9ca3af' }}>
+                Top 20 students ranked by engagement, activity and brand score
+              </p>
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #fce7f3, #ede9fe)',
+              border: '1px solid #f9a8d4',
+              borderRadius: '12px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#9d174d'
+            }}>
+              👑 Admin Only
+            </div>
+          </div>
+          <StudentRankings />
+        </div>
+
+        {/* Analytics Charts */}
+        <div style={{
+          background: 'rgba(255,255,255,0.7)',
+          backdropFilter: 'blur(12px)',
+          border: '1.5px solid #e0e7ff',
+          borderRadius: '20px',
+          padding: '24px',
+          marginBottom: '24px',
+          boxShadow: '0 4px 20px rgba(99,102,241,0.08)'
+        }}>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{
+              fontSize: '18px',
+              fontWeight: '800',
+              background: 'linear-gradient(to right, #6366f1, #ec4899)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              marginBottom: '4px'
+            }}>
+              📊 Analytics Dashboard
+            </h2>
+            <p style={{ fontSize: '13px', color: '#9ca3af' }}>
+              Real-time charts and insights across all brands
+            </p>
+          </div>
+          <AnalyticsCharts />
         </div>
 
         {/* Two column management section */}
@@ -295,6 +560,28 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold text-gray-800 mb-5 flex items-center gap-2">
               🏷️ Brands Management
             </h2>
+            <button
+              onClick={async () => {
+                await recalculateAllScores();
+                showToast('✅ All engagement scores updated!', 'success');
+              }}
+              style={{
+                backgroundImage: 'linear-gradient(to right, #ec4899, #a855f7)',
+                color: 'white',
+                padding: '10px 20px',
+                borderRadius: '12px',
+                border: 'none',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                width: '100%',
+                marginBottom: '15px'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundImage = 'linear-gradient(to right, #db2777, #9333ea)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundImage = 'linear-gradient(to right, #ec4899, #a855f7)'}
+            >
+              ⚡ Recalculate All Scores
+            </button>
             <div className="space-y-3">
               {brands.map((brand, index) => (
                 <div
@@ -311,6 +598,10 @@ export default function AdminDashboard() {
                       <span className="text-xs text-gray-400">
                         ❤️ {brand.likeCount || 0} · 👥 {brand.followerCount || 0}
                       </span>
+                      <span style={{ fontSize: '11px', color: '#a855f7', fontWeight: '600' }}>
+                        ⚡ {brand.engagementScore || 0}
+                      </span>
+                      <ReputationBadge score={brand.reputationScore || 0} size="sm" />
                     </div>
                   </div>
                   <button
